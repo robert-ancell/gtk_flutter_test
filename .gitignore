@@ -5,3 +5,4 @@
 .pub-cache/
 .pub/
 /build/
+/linux/flutter
