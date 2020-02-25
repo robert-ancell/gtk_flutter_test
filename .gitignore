@@ -6,3 +6,4 @@
 .pub/
 /build/
 /linux/flutter
+/linux/gtk_flutter_test
