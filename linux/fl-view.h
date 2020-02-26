@@ -13,13 +13,17 @@
 
 G_BEGIN_DECLS
 
-G_DECLARE_DERIVABLE_TYPE (FlView, gs_view, FL, VIEW, GtkGLArea)
+G_DECLARE_DERIVABLE_TYPE (FlView, fl_view, FL, VIEW, GtkGLArea)
 
 struct _FlViewClass
 {
     GtkGLAreaClass parent_class;
 };
 
-FlView *fl_view_new (void);
+FlView *fl_view_new              (void);
+
+void   fl_view_set_assets_path   (FlView *view, const gchar *assets_path);
+
+void   fl_view_set_icu_data_path (FlView *view, const gchar *icu_data_path);
 
 G_END_DECLS

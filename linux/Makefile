@@ -8,7 +8,7 @@ include $(FLUTTER_CONFIG_FILE)
 SOURCES = main.c fl-view.c
 
 gtk_flutter_test: $(SOURCES)
-	gcc -g -Wall -o gtk_flutter_test $(SOURCES) `pkg-config --cflags --libs gtk+-3.0`
+	gcc -g -Wall -o gtk_flutter_test $(SOURCES) -L. -lflutter_engine `pkg-config --cflags --libs gtk+-3.0`
 
 all: gtk_flutter_test
 	$(LINUX_BUILD) linux-x64 release

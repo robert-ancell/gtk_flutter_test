@@ -11,6 +11,9 @@ main (int argc, char **argv)
     gtk_widget_show (window);
 
     FlView *view = fl_view_new ();
+    fl_view_set_assets_path (view, "./build/flutter_assets");
+    //fl_view_set_icu_data_path (view, "./build/flutter_assets");
+
     gtk_widget_show (GTK_WIDGET (view));
     gtk_container_add (GTK_CONTAINER (window), GTK_WIDGET (view));
 
