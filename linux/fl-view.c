@@ -132,11 +132,28 @@ fl_view_render (GtkGLArea *widget, GdkGLContext *context)
 }
 
 static void
+fl_view_resize (GtkGLArea *widget, int width, int height)
+{
+    FlView *self = FL_VIEW (widget);
+    FlViewPrivate *priv = fl_view_get_instance_private (self);
+
+    g_printerr ("fl_view_resize %d %d\n", width, height);
+
+    FlutterWindowMetricsEvent event = {};
+    event.struct_size = sizeof (FlutterWindowMetricsEvent);
+    event.width = width;
+    event.height = height;
+    event.pixel_ratio = 1;
+    FlutterEngineSendWindowMetricsEvent (priv->engine, &event);
+}
+
+static void
 fl_view_class_init (FlViewClass *klass)
 {
     G_OBJECT_CLASS (klass)->dispose = fl_view_dispose;
     GTK_WIDGET_CLASS (klass)->realize = fl_view_realize;
     GTK_GL_AREA_CLASS (klass)->render = fl_view_render;
+    GTK_GL_AREA_CLASS (klass)->resize = fl_view_resize;
 }
 
 static void
