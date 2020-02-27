@@ -1,7 +1,7 @@
 name: gtk_flutter_test
 description: GTK Flutter Integration
 
-version: 1
+version: 1.0.0
 
 environment:
   sdk: ">=2.1.0 <3.0.0"
