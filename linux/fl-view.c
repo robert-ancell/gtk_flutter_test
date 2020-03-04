@@ -7,6 +7,9 @@
  * See http://www.gnu.org/copyleft/lgpl.html the full text of the license.
  */
 
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+
 #include "embedder.h"
 #include "fl-view.h"
 
@@ -15,6 +18,7 @@ typedef struct
     gchar *assets_path;
     gchar *icu_data_path;
     FlutterEngine engine;
+    GLuint fbo;
 } FlViewPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_GL_AREA)
@@ -41,6 +45,7 @@ static bool
 fl_view_gl_make_current (void *user_data)
 {
     FlView *self = user_data;
+    g_printerr ("fl_view_gl_make_current\n");
     gtk_gl_area_make_current (GTK_GL_AREA (self));
     return true;
 }
@@ -64,9 +69,10 @@ fl_view_gl_present (void *user_data)
 static uint32_t
 fl_view_gl_fbo_callback (void *user_data)
 {
-    //FlView *self = user_data;
+    FlView *self = user_data;
+    FlViewPrivate *priv = fl_view_get_instance_private (self);
     g_printerr ("fl_view_gl_fbo_callback\n");
-    return 0;
+    return priv->fbo;
 }
 
 static bool
@@ -138,6 +144,18 @@ fl_view_resize (GtkGLArea *widget, int width, int height)
     FlViewPrivate *priv = fl_view_get_instance_private (self);
 
     g_printerr ("fl_view_resize %d %d\n", width, height);
+
+    GLuint tx;
+    glGenTextures(1, &tx);
+    //glGenTextures(1, &front_buffer_tx_);
+    GLuint rb;
+    glGenRenderbuffers (1, &rb);
+    glBindRenderbuffer (GL_RENDERBUFFER, rb);
+    glRenderbufferStorage (GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, width, height);
+    glGenFramebuffers (1, &priv->fbo);
+    glBindFramebuffer (GL_FRAMEBUFFER, priv->fbo);
+    glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_BINDING_2D, tx, 0);
+    glFramebufferRenderbuffer (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rb);
 
     FlutterWindowMetricsEvent event = {};
     event.struct_size = sizeof (FlutterWindowMetricsEvent);
