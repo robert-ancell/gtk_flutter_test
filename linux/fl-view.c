@@ -7,8 +7,7 @@
  * See http://www.gnu.org/copyleft/lgpl.html the full text of the license.
  */
 
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+#include <epoxy/gl.h>
 
 #include "embedder.h"
 #include "fl-view.h"
