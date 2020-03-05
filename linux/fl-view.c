@@ -8,9 +8,6 @@
  */
 
 #include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #include <gdk/gdkx.h>
 
 #include "embedder.h"
@@ -26,7 +23,6 @@ typedef struct
     gchar *icu_data_path;
 
     FlutterEngine engine;
-    GLuint fbo;
 } FlViewPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_WIDGET)
@@ -160,7 +156,7 @@ fl_view_realize (GtkWidget *widget)
     gtk_widget_register_window (widget, window);
     gtk_widget_set_window (widget, window);
 
-    priv->egl_display = eglGetDisplay ((EGLNativeDisplayType) gdk_x11_display_get_xdisplay (gtk_widget_get_display (widget)));
+    priv->egl_display = eglGetDisplay (EGL_DEFAULT_DISPLAY);//(EGLNativeDisplayType) gdk_x11_display_get_xdisplay (gtk_widget_get_display (widget)));
     if (!eglInitialize (priv->egl_display, &egl_major, &egl_minor))
         g_critical ("Failed to initialze EGL");
     g_printerr ("Initialized EGL version %d.%d\n", egl_major, egl_minor);
