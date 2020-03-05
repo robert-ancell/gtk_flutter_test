@@ -7,20 +7,29 @@
  * See http://www.gnu.org/copyleft/lgpl.html the full text of the license.
  */
 
-#include <epoxy/gl.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <gdk/gdkx.h>
 
 #include "embedder.h"
 #include "fl-view.h"
 
 typedef struct
 {
+    EGLDisplay *egl_display;
+    EGLSurface *egl_surface;
+    EGLContext *egl_context;
+
     gchar *assets_path;
     gchar *icu_data_path;
+
     FlutterEngine engine;
     GLuint fbo;
 } FlViewPrivate;
 
-G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_GL_AREA)
+G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_DRAWING_AREA)
 
 static gchar *
 flutter_engine_result_to_string (FlutterEngineResult result)
@@ -44,16 +53,20 @@ static bool
 fl_view_gl_make_current (void *user_data)
 {
     FlView *self = user_data;
+    FlViewPrivate *priv = fl_view_get_instance_private (self);
     g_printerr ("fl_view_gl_make_current\n");
-    gtk_gl_area_make_current (GTK_GL_AREA (self));
+    if (!eglMakeCurrent (priv->egl_display, priv->egl_surface, priv->egl_surface, priv->egl_context))
+       g_critical ("Failed to make EGL context current");
     return true;
 }
 
 static bool
 fl_view_gl_clear_current (void *user_data)
 {
-    //FlView *self = user_data;
+    FlView *self = user_data;
+    FlViewPrivate *priv = fl_view_get_instance_private (self);
     g_printerr ("fl_view_gl_clear_current\n");
+    eglMakeCurrent (priv->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     return false;
 }
 
@@ -74,12 +87,18 @@ fl_view_gl_fbo_callback (void *user_data)
     return priv->fbo;
 }
 
-static bool
+/*static bool
 fl_view_gl_make_resource_current (void *user_data)
 {
     //FlView *self = user_data;
     g_printerr ("fl_view_gl_make_resource_current\n");
     return false;
+}*/
+
+static void *
+fl_view_gl_proc_resolver (void *user_data, const char *name)
+{
+    return eglGetProcAddress (name);
 }
 
 static void
@@ -98,10 +117,36 @@ fl_view_realize (GtkWidget *widget)
 {
     FlView *self = FL_VIEW (widget);
     FlViewPrivate *priv = fl_view_get_instance_private (self);
+    EGLint egl_major, egl_minor;
+    EGLConfig egl_config;
+    EGLint n_config;
+    EGLint attributes[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                            EGL_RED_SIZE, 8,
+                            EGL_GREEN_SIZE, 8,
+                            EGL_BLUE_SIZE, 8,
+                            EGL_ALPHA_SIZE, 8,
+                            EGL_NONE };
     FlutterRendererConfig config = { 0 };
     FlutterProjectArgs args = { 0 };
 
     GTK_WIDGET_CLASS (fl_view_parent_class)->realize (widget);
+
+    priv->egl_display = eglGetDisplay ((EGLNativeDisplayType) gdk_x11_display_get_xdisplay (gtk_widget_get_display (widget)));
+    if (!eglInitialize (priv->egl_display, &egl_major, &egl_minor))
+        g_critical ("Failed to initialze EGL");
+    g_printerr ("Initialized EGL version %d.%d\n", egl_major, egl_minor);
+    if (!eglChooseConfig (priv->egl_display, attributes, &egl_config, 1, &n_config))
+        g_critical ("Failed to choose EGL config");
+    if (n_config == 0)
+        g_critical ("Failed to find appropriate EGL config");
+    if (!eglBindAPI (EGL_OPENGL_ES_API))
+        g_critical ("Failed to bind EGL OpenGL ES API");
+    priv->egl_surface = eglCreateWindowSurface (priv->egl_display, egl_config, gdk_x11_window_get_xid (gtk_widget_get_window (widget)), NULL);
+    EGLint context_attributes[] = { EGL_CONTEXT_CLIENT_VERSION, 2,
+                                    EGL_NONE };
+    priv->egl_context = eglCreateContext (priv->egl_display, egl_config, EGL_NO_CONTEXT, context_attributes);
+    EGLint value;
+    eglQueryContext (priv->egl_display, priv->egl_context, EGL_CONTEXT_CLIENT_VERSION, &value);
 
     config.type = kOpenGL;
     config.open_gl.struct_size = sizeof (FlutterOpenGLRendererConfig);
@@ -109,7 +154,8 @@ fl_view_realize (GtkWidget *widget)
     config.open_gl.clear_current = fl_view_gl_clear_current;
     config.open_gl.present = fl_view_gl_present;
     config.open_gl.fbo_callback = fl_view_gl_fbo_callback;
-    config.open_gl.make_resource_current = fl_view_gl_make_resource_current;
+    config.open_gl.make_resource_current = NULL;//fl_view_gl_make_resource_current;
+    config.open_gl.gl_proc_resolver = fl_view_gl_proc_resolver;
     args.struct_size = sizeof (FlutterProjectArgs);
     args.assets_path = priv->assets_path;
     args.icu_data_path = priv->icu_data_path;
@@ -129,20 +175,13 @@ fl_view_realize (GtkWidget *widget)
     }
 }
 
-static gboolean
-fl_view_render (GtkGLArea *widget, GdkGLContext *context)
-{
-    g_printerr ("fl_view_render\n");
-    return FALSE;
-}
-
 static void
-fl_view_resize (GtkGLArea *widget, int width, int height)
+fl_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 {
     FlView *self = FL_VIEW (widget);
     FlViewPrivate *priv = fl_view_get_instance_private (self);
 
-    g_printerr ("fl_view_resize %d %d\n", width, height);
+    g_printerr ("fl_view_size_allocate %d %d\n", allocation->width, allocation->height);
 
     GLuint tx;
     glGenTextures(1, &tx);
@@ -150,7 +189,7 @@ fl_view_resize (GtkGLArea *widget, int width, int height)
     GLuint rb;
     glGenRenderbuffers (1, &rb);
     glBindRenderbuffer (GL_RENDERBUFFER, rb);
-    glRenderbufferStorage (GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, width, height);
+    glRenderbufferStorage (GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, allocation->width, allocation->height);
     glGenFramebuffers (1, &priv->fbo);
     glBindFramebuffer (GL_FRAMEBUFFER, priv->fbo);
     glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_BINDING_2D, tx, 0);
@@ -158,9 +197,9 @@ fl_view_resize (GtkGLArea *widget, int width, int height)
 
     FlutterWindowMetricsEvent event = {};
     event.struct_size = sizeof (FlutterWindowMetricsEvent);
-    event.width = width;
-    event.height = height;
-    event.pixel_ratio = 1;
+    event.width = allocation->width;
+    event.height = allocation->height;
+    event.pixel_ratio = 1; // FIXME
     FlutterEngineSendWindowMetricsEvent (priv->engine, &event);
 }
 
@@ -169,8 +208,7 @@ fl_view_class_init (FlViewClass *klass)
 {
     G_OBJECT_CLASS (klass)->dispose = fl_view_dispose;
     GTK_WIDGET_CLASS (klass)->realize = fl_view_realize;
-    GTK_GL_AREA_CLASS (klass)->render = fl_view_render;
-    GTK_GL_AREA_CLASS (klass)->resize = fl_view_resize;
+    GTK_WIDGET_CLASS (klass)->size_allocate = fl_view_size_allocate;
 }
 
 static void
