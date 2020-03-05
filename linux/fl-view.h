@@ -13,11 +13,11 @@
 
 G_BEGIN_DECLS
 
-G_DECLARE_DERIVABLE_TYPE (FlView, fl_view, FL, VIEW, GtkDrawingArea)
+G_DECLARE_DERIVABLE_TYPE (FlView, fl_view, FL, VIEW, GtkWidget)
 
 struct _FlViewClass
 {
-    GtkDrawingAreaClass parent_class;
+    GtkWidgetClass parent_class;
 };
 
 FlView *fl_view_new              (void);

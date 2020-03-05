@@ -29,7 +29,7 @@ typedef struct
     GLuint fbo;
 } FlViewPrivate;
 
-G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_DRAWING_AREA)
+G_DEFINE_TYPE_WITH_PRIVATE (FlView, fl_view, GTK_TYPE_WIDGET)
 
 static gchar *
 flutter_engine_result_to_string (FlutterEngineResult result)
@@ -73,18 +73,19 @@ fl_view_gl_clear_current (void *user_data)
 static bool
 fl_view_gl_present (void *user_data)
 {
-    //FlView *self = user_data;
+    FlView *self = user_data;
+    FlViewPrivate *priv = fl_view_get_instance_private (self);
     g_printerr ("fl_view_gl_present\n");
+    if (!eglSwapBuffers (priv->egl_display, priv->egl_surface))
+        g_critical ("Failed to swap EGL buffers");
     return false;
 }
 
 static uint32_t
 fl_view_gl_fbo_callback (void *user_data)
 {
-    FlView *self = user_data;
-    FlViewPrivate *priv = fl_view_get_instance_private (self);
     g_printerr ("fl_view_gl_fbo_callback\n");
-    return priv->fbo;
+    return 0;
 }
 
 /*static bool
@@ -117,6 +118,10 @@ fl_view_realize (GtkWidget *widget)
 {
     FlView *self = FL_VIEW (widget);
     FlViewPrivate *priv = fl_view_get_instance_private (self);
+    GtkAllocation allocation;
+    GdkWindow *window;
+    GdkWindowAttr window_attributes;
+    gint window_attributes_mask;
     EGLint egl_major, egl_minor;
     EGLConfig egl_config;
     EGLint n_config;
@@ -129,7 +134,27 @@ fl_view_realize (GtkWidget *widget)
     FlutterRendererConfig config = { 0 };
     FlutterProjectArgs args = { 0 };
 
-    GTK_WIDGET_CLASS (fl_view_parent_class)->realize (widget);
+    g_printerr ("fl_view_realize\n");
+
+    gtk_widget_set_realized (widget, TRUE);
+
+    gtk_widget_get_allocation (widget, &allocation);
+
+    window_attributes.window_type = GDK_WINDOW_CHILD;
+    window_attributes.x = allocation.x;
+    window_attributes.y = allocation.y;
+    window_attributes.width = allocation.width;
+    window_attributes.height = allocation.height;
+    window_attributes.wclass = GDK_INPUT_OUTPUT;
+    window_attributes.visual = gtk_widget_get_visual (widget);
+    window_attributes.event_mask = gtk_widget_get_events (widget) | GDK_EXPOSURE_MASK;
+
+    window_attributes_mask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
+
+    window = gdk_window_new (gtk_widget_get_parent_window (widget),
+                             &window_attributes, window_attributes_mask);
+    gtk_widget_register_window (widget, window);
+    gtk_widget_set_window (widget, window);
 
     priv->egl_display = eglGetDisplay ((EGLNativeDisplayType) gdk_x11_display_get_xdisplay (gtk_widget_get_display (widget)));
     if (!eglInitialize (priv->egl_display, &egl_major, &egl_minor))
@@ -183,17 +208,14 @@ fl_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 
     g_printerr ("fl_view_size_allocate %d %d\n", allocation->width, allocation->height);
 
-    GLuint tx;
-    glGenTextures(1, &tx);
-    //glGenTextures(1, &front_buffer_tx_);
-    GLuint rb;
-    glGenRenderbuffers (1, &rb);
-    glBindRenderbuffer (GL_RENDERBUFFER, rb);
-    glRenderbufferStorage (GL_RENDERBUFFER, GL_DEPTH_COMPONENT24_OES, allocation->width, allocation->height);
-    glGenFramebuffers (1, &priv->fbo);
-    glBindFramebuffer (GL_FRAMEBUFFER, priv->fbo);
-    glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_BINDING_2D, tx, 0);
-    glFramebufferRenderbuffer (GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rb);
+    gtk_widget_set_allocation (widget, allocation);
+
+    if (gtk_widget_get_realized (widget)) {
+        if (gtk_widget_get_has_window (widget))
+            gdk_window_move_resize (gtk_widget_get_window (widget),
+                                    allocation->x, allocation->y,
+                                    allocation->width, allocation->height);
+    }
 
     FlutterWindowMetricsEvent event = {};
     event.struct_size = sizeof (FlutterWindowMetricsEvent);
@@ -203,12 +225,24 @@ fl_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
     FlutterEngineSendWindowMetricsEvent (priv->engine, &event);
 }
 
+static gboolean
+fl_view_draw (GtkWidget *widget, cairo_t *c)
+{
+    //FlView *self = FL_VIEW (widget);
+    //FlViewPrivate *priv = fl_view_get_instance_private (self);
+
+    g_printerr ("fl_view_draw\n");
+
+    return FALSE;
+}
+
 static void
 fl_view_class_init (FlViewClass *klass)
 {
     G_OBJECT_CLASS (klass)->dispose = fl_view_dispose;
     GTK_WIDGET_CLASS (klass)->realize = fl_view_realize;
     GTK_WIDGET_CLASS (klass)->size_allocate = fl_view_size_allocate;
+    GTK_WIDGET_CLASS (klass)->draw = fl_view_draw;
 }
 
 static void
