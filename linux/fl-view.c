@@ -49,6 +49,7 @@ flutter_engine_result_to_string (FlutterEngineResult result)
     }
 }
 
+// FIXME: Called from Flutter thread
 static bool
 fl_view_gl_make_current (void *user_data)
 {
@@ -60,6 +61,7 @@ fl_view_gl_make_current (void *user_data)
     return true;
 }
 
+// FIXME: Called from Flutter thread
 static bool
 fl_view_gl_clear_current (void *user_data)
 {
@@ -70,6 +72,7 @@ fl_view_gl_clear_current (void *user_data)
     return false;
 }
 
+// FIXME: Called from Flutter thread
 static bool
 fl_view_gl_present (void *user_data)
 {
@@ -81,6 +84,7 @@ fl_view_gl_present (void *user_data)
     return false;
 }
 
+// FIXME: Called from Flutter thread
 static uint32_t
 fl_view_gl_fbo_callback (void *user_data)
 {
@@ -210,12 +214,10 @@ fl_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
 
     gtk_widget_set_allocation (widget, allocation);
 
-    if (gtk_widget_get_realized (widget)) {
-        if (gtk_widget_get_has_window (widget))
-            gdk_window_move_resize (gtk_widget_get_window (widget),
-                                    allocation->x, allocation->y,
-                                    allocation->width, allocation->height);
-    }
+    if (gtk_widget_get_realized (widget) && gtk_widget_get_has_window (widget))
+        gdk_window_move_resize (gtk_widget_get_window (widget),
+                                allocation->x, allocation->y,
+                                allocation->width, allocation->height);
 
     FlutterWindowMetricsEvent event = {};
     event.struct_size = sizeof (FlutterWindowMetricsEvent);
@@ -225,24 +227,12 @@ fl_view_size_allocate (GtkWidget *widget, GtkAllocation *allocation)
     FlutterEngineSendWindowMetricsEvent (priv->engine, &event);
 }
 
-static gboolean
-fl_view_draw (GtkWidget *widget, cairo_t *c)
-{
-    //FlView *self = FL_VIEW (widget);
-    //FlViewPrivate *priv = fl_view_get_instance_private (self);
-
-    g_printerr ("fl_view_draw\n");
-
-    return FALSE;
-}
-
 static void
 fl_view_class_init (FlViewClass *klass)
 {
     G_OBJECT_CLASS (klass)->dispose = fl_view_dispose;
     GTK_WIDGET_CLASS (klass)->realize = fl_view_realize;
     GTK_WIDGET_CLASS (klass)->size_allocate = fl_view_size_allocate;
-    GTK_WIDGET_CLASS (klass)->draw = fl_view_draw;
 }
 
 static void
